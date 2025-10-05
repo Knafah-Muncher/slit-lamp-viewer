@@ -876,11 +876,16 @@
                     camera.lookAt(modelCenter);
                     controls.update();
                     
-                    // Create light beam after model is loaded
-                    createLightBeam();
-                    updateLightBeam();
-                    
+                    // Hide loading screen BEFORE creating light beam
                     document.getElementById('loading').style.display = 'none';
+                    
+                    // Create light beam after model is loaded (with error handling)
+                    try {
+                        createLightBeam();
+                        updateLightBeam();
+                    } catch(e) {
+                        console.error("Error creating light beam:", e);
+                    }
                 },
                 
                 function(xhr) {
