@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Slit Lamp - Physical Movements</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            overflow: hidden;
+            color: #fff;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px 50px;
+            border-radius: 16px;
+            border: 1px solid rgba(96, 165, 250, 0.3);
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top: 4px solid #60a5fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+        }
+        
+        .info h1 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #60a5fa;
+        }
+        
+        .info p {
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.5;
+        }
+        
+        .controls-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.92);
+            padding: 25px;
+            border-radius: 16px;
+            backdrop-filter: blur(15px);
+            width: 360px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid rgba(96, 165, 250, 0.4);
+        }
+        
+        .controls-panel h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #60a5fa;
+            border-bottom: 2px solid rgba(96, 165, 250, 0.3);
+            padding-bottom: 12px;
+        }
+        
+        .control-group {
+            margin-bottom: 22px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .control-group:last-child {
+            border-bottom: none;
+        }
+        
+        .control-group h3 {
+            font-size: 14px;
+            color: #e5e7eb;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .slider-control {
+            margin-bottom: 18px;
+        }
+        
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .slider-label label {
+            font-size: 13px;
+            color: #d1d5db;
+            font-weight: 500;
+        }
+        
+        .slider-value {
+            font-size: 13px;
+            color: #60a5fa;
+            font-weight: 700;
+            background: rgba(96, 165, 250, 0.15);
+            padding: 3px 10px;
+            border-radius: 6px;
+            min-width: 55px;
+            text-align: center;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.15);
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #60a5fa;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.5);
+            transition: all 0.2s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #3b82f6;
+            transform: scale(1.15);
+        }
+        
+        .reset-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+        
+        .reset-btn:hover {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            transform: translateY(-2px);
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 12px;
+            background: rgba(52, 211, 153, 0.1);
+            border-radius: 8px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #34d399;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-size: 13px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="loading" class="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading 3D Model...</div>
+    </div>
+    
+    <div class="info">
+        <h1>🔬 Interactive Slit Lamp</h1>
+        <p>Physically Simulated Movements</p>
+    </div>
+    
+    <div class="controls-panel">
+        <h2>🎮 Physical Controls</h2>
+        
+        <div class="control-group">
+            <h3>📍 Positioning (Joystick)</h3>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Forward/Back</label>
+                    <span class="slider-value" id="posZValue">0</span>
+                </div>
+                <input type="range" id="posZ" min="-2" max="2" value="0" step="0.1">
+            </div>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Left/Right</label>
+                    <span class="slider-value" id="posXValue">0</span>
+                </div>
+                <input type="range" id="posX" min="-2" max="2" value="0" step="0.1">
+            </div>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Up/Down</label>
+                    <span class="slider-value" id="posYValue">0</span>
+                </div>
+                <input type="range" id="posY" min="-1" max="1" value="0" step="0.1">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>💡 Illumination Arm</h3>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Rotation Angle</label>
+                    <span class="slider-value" id="illumRotValue">0°</span>
+                </div>
+                <input type="range" id="illumRot" min="-90" max="90" value="0" step="1">
+            </div>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Tilt</label>
+                    <span class="slider-value" id="illumTiltValue">0°</span>
+                </div>
+                <input type="range" id="illumTilt" min="-30" max="30" value="0" step="1">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>🔬 Microscope</h3>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Viewing Angle</label>
+                    <span class="slider-value" id="microscopeRotValue">0°</span>
+                </div>
+                <input type="range" id="microscopeRot" min="-45" max="45" value="0" step="1">
+            </div>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Tilt</label>
+                    <span class="slider-value" id="microscopeTiltValue">0°</span>
+                </div>
+                <input type="range" id="microscopeTilt" min="-20" max="20" value="0" step="1">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>🔄 Base Rotation</h3>
+            
+            <div class="slider-control">
+                <div class="slider-label">
+                    <label>Rotate Entire Unit</label>
+                    <span class="slider-value" id="baseRotValue">0°</span>
+                </div>
+                <input type="range" id="baseRot" min="-180" max="180" value="0" step="1">
+            </div>
+        </div>
+        
+        <button class="reset-btn" id="resetBtn">🔄 Reset All Positions</button>
+        
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span style="color: #34d399; font-size: 13px; font-weight: 600;">Model Interactive</span>
+        </div>
+    </div>
+    
+    <div class="controls">
+        Left Click + Drag: Rotate View | Right Click + Drag: Pan | Scroll: Zoom
+    </div>
+    
+    <script>
+        let scene, camera, renderer, controls, model;
+        let modelParts = {
+            illuminationArm: null,
+            microscope: null,
+            base: null,
+            mainGroup: null
+        };
+        
+        // State for movements
+        const state = {
+            posX: 0,
+            posY: 0,
+            posZ: 0,
+            illumRot: 0,
+            illumTilt: 0,
+            microscopeRot: 0,
+            microscopeTilt: 0,
+            baseRot: 0
+        };
+        
+        const defaultState = {...state};
+        
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            camera = new THREE.PerspectiveCamera(
+                50,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(6, 4, 8);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 2;
+            controls.maxDistance = 20;
+            controls.target.set(0, 2, 0);
+            controls.update();
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 7);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            const pointLight1 = new THREE.PointLight(0x60a5fa, 0.5);
+            pointLight1.position.set(-5, 5, -5);
+            scene.add(pointLight1);
+            
+            // Ground
+            const groundGeometry = new THREE.CircleGeometry(15, 64);
+            const groundMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x2a2a3e,
+                roughness: 0.8
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            setupControls();
+            loadModel();
+            
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+        
+        function setupControls() {
+            // Position controls
+            document.getElementById('posX').addEventListener('input', (e) => {
+                state.posX = parseFloat(e.target.value);
+                document.getElementById('posXValue').textContent = state.posX.toFixed(1);
+                updateModelPosition();
+            });
+            
+            document.getElementById('posY').addEventListener('input', (e) => {
+                state.posY = parseFloat(e.target.value);
+                document.getElementById('posYValue').textContent = state.posY.toFixed(1);
+                updateModelPosition();
+            });
+            
+            document.getElementById('posZ').addEventListener('input', (e) => {
+                state.posZ = parseFloat(e.target.value);
+                document.getElementById('posZValue').textContent = state.posZ.toFixed(1);
+                updateModelPosition();
+            });
+            
+            // Illumination controls
+            document.getElementById('illumRot').addEventListener('input', (e) => {
+                state.illumRot = parseInt(e.target.value);
+                document.getElementById('illumRotValue').textContent = state.illumRot + '°';
+                updateIlluminationArm();
+            });
+            
+            document.getElementById('illumTilt').addEventListener('input', (e) => {
+                state.illumTilt = parseInt(e.target.value);
+                document.getElementById('illumTiltValue').textContent = state.illumTilt + '°';
+                updateIlluminationArm();
+            });
+            
+            // Microscope controls
+            document.getElementById('microscopeRot').addEventListener('input', (e) => {
+                state.microscopeRot = parseInt(e.target.value);
+                document.getElementById('microscopeRotValue').textContent = state.microscopeRot + '°';
+                updateMicroscope();
+            });
+            
+            document.getElementById('microscopeTilt').addEventListener('input', (e) => {
+                state.microscopeTilt = parseInt(e.target.value);
+                document.getElementById('microscopeTiltValue').textContent = state.microscopeTilt + '°';
+                updateMicroscope();
+            });
+            
+            // Base rotation
+            document.getElementById('baseRot').addEventListener('input', (e) => {
+                state.baseRot = parseInt(e.target.value);
+                document.getElementById('baseRotValue').textContent = state.baseRot + '°';
+                updateBaseRotation();
+            });
+            
+            // Reset button
+            document.getElementById('resetBtn').addEventListener('click', resetAll);
+        }
+        
+        function updateModelPosition() {
+            if (!model) return;
+            model.position.x = model.userData.originalPos.x + state.posX;
+            model.position.y = model.userData.originalPos.y + state.posY;
+            model.position.z = model.userData.originalPos.z + state.posZ;
+        }
+        
+        function updateIlluminationArm() {
+            // Find and rotate illumination parts
+            if (model) {
+                model.traverse((child) => {
+                    // Look for parts that might be the illumination arm
+                    // This will be customized based on the actual model structure
+                    if (child.name && child.name.toLowerCase().includes('illum')) {
+                        child.rotation.y = (state.illumRot * Math.PI) / 180;
+                        child.rotation.x = (state.illumTilt * Math.PI) / 180;
+                    }
+                });
+            }
+        }
+        
+        function updateMicroscope() {
+            if (model) {
+                model.traverse((child) => {
+                    // Look for microscope parts
+                    if (child.name && (child.name.toLowerCase().includes('micro') || 
+                                        child.name.toLowerCase().includes('scope') ||
+                                        child.name.toLowerCase().includes('eye'))) {
+                        child.rotation.y = (state.microscopeRot * Math.PI) / 180;
+                        child.rotation.x = (state.microscopeTilt * Math.PI) / 180;
+                    }
+                });
+            }
+        }
+        
+        function updateBaseRotation() {
+            if (!model) return;
+            model.rotation.y = (state.baseRot * Math.PI) / 180;
+        }
+        
+        function resetAll() {
+            Object.assign(state, defaultState);
+            
+            document.getElementById('posX').value = 0;
+            document.getElementById('posY').value = 0;
+            document.getElementById('posZ').value = 0;
+            document.getElementById('illumRot').value = 0;
+            document.getElementById('illumTilt').value = 0;
+            document.getElementById('microscopeRot').value = 0;
+            document.getElementById('microscopeTilt').value = 0;
+            document.getElementById('baseRot').value = 0;
+            
+            document.getElementById('posXValue').textContent = '0';
+            document.getElementById('posYValue').textContent = '0';
+            document.getElementById('posZValue').textContent = '0';
+            document.getElementById('illumRotValue').textContent = '0°';
+            document.getElementById('illumTiltValue').textContent = '0°';
+            document.getElementById('microscopeRotValue').textContent = '0°';
+            document.getElementById('microscopeTiltValue').textContent = '0°';
+            document.getElementById('baseRotValue').textContent = '0°';
+            
+            updateModelPosition();
+            updateIlluminationArm();
+            updateMicroscope();
+            updateBaseRotation();
+        }
+        
+        function loadModel() {
+            const loader = new THREE.GLTFLoader();
+            
+            loader.load(
+                'optician_tool_-_slit_lamp.glb',
+                
+                function(gltf) {
+                    model = gltf.scene;
+                    
+                    // Log all parts for debugging
+                    console.log("Model loaded! Parts found:");
+                    model.traverse((child) => {
+                        if (child.name) {
+                            console.log(" - " + child.name + " (" + child.type + ")");
+                        }
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                    
+                    // Scale and position model
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = 4 / maxDim;
+                    model.scale.multiplyScalar(scale);
+                    
+                    const scaledBox = new THREE.Box3().setFromObject(model);
+                    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+                    
+                    model.position.x = -scaledCenter.x;
+                    model.position.y = -scaledBox.min.y;
+                    model.position.z = -scaledCenter.z;
+                    
+                    // Store original position
+                    model.userData.originalPos = model.position.clone();
+                    
+                    scene.add(model);
+                    
+                    const modelCenter = scaledBox.getCenter(new THREE.Vector3());
+                    controls.target.copy(modelCenter);
+                    controls.update();
+                    
+                    document.getElementById('loading').style.display = 'none';
+                },
+                
+                undefined,
+                
+                function(error) {
+                    console.error('Error loading model:', error);
+                    document.getElementById('loading').innerHTML = 
+                        '<h2 style="color:#ef4444">Error</h2><p>Failed to load model</p>';
+                }
+            );
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        init();
+    </script>
+</body>
+</html>
