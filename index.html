@@ -705,43 +705,56 @@
             // Create light beam geometry
             const beamGroup = new THREE.Group();
             
-            // Main beam (cone shape for the light)
-            const beamGeometry = new THREE.CylinderGeometry(0.01, 0.3, 2, 32, 1, true);
+            // Main beam (cone shape for the light) - horizontal projection
+            const beamGeometry = new THREE.CylinderGeometry(0.01, 0.2, 2.5, 32, 1, true);
             const beamMaterial = new THREE.MeshBasicMaterial({
                 color: 0xffffe0,
                 transparent: true,
-                opacity: 0.3,
-                side: THREE.DoubleSide
+                opacity: 0.4,
+                side: THREE.DoubleSide,
+                depthWrite: false
             });
             
             const beam = new THREE.Mesh(beamGeometry, beamMaterial);
-            beam.position.y = 1;
-            beam.rotation.x = Math.PI;
+            beam.position.x = 1.25; // Extend horizontally
+            beam.rotation.z = Math.PI / 2; // Rotate to horizontal
             beamGroup.add(beam);
             
             // Beam core (brighter center)
-            const coreGeometry = new THREE.CylinderGeometry(0.005, 0.1, 2, 16, 1, true);
+            const coreGeometry = new THREE.CylinderGeometry(0.005, 0.08, 2.5, 16, 1, true);
             const coreMaterial = new THREE.MeshBasicMaterial({
                 color: 0xffffff,
                 transparent: true,
-                opacity: 0.6
+                opacity: 0.7,
+                depthWrite: false
             });
             
             const core = new THREE.Mesh(coreGeometry, coreMaterial);
-            core.position.y = 1;
-            core.rotation.x = Math.PI;
+            core.position.x = 1.25;
+            core.rotation.z = Math.PI / 2;
             beamGroup.add(core);
             
-            // Point light for the beam
-            beamLight = new THREE.SpotLight(0xffffe0, 2, 5, Math.PI / 6, 0.5, 1);
-            beamLight.position.set(0, 2, 0);
-            beamLight.target.position.set(0, 0, 0);
+            // Spot light for the beam
+            beamLight = new THREE.SpotLight(0xffffe0, 3, 6, Math.PI / 8, 0.3, 1);
+            beamLight.position.set(0, 0, 0); // Start at illumination source
+            beamLight.target.position.set(2.5, 0, 0); // Point horizontally forward
+            beamLight.castShadow = true;
             beamGroup.add(beamLight);
             beamGroup.add(beamLight.target);
             
-            // Position the beam group relative to slit lamp
-            // This will need adjustment based on actual model position
-            beamGroup.position.set(0, 2, 0);
+            // Add glow effect at light source
+            const glowGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffe0,
+                transparent: true,
+                opacity: 0.8
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            beamGroup.add(glow);
+            
+            // Position the beam group at the illumination tower (left side)
+            // Adjust these values based on your actual model's illumination tower position
+            beamGroup.position.set(-1.2, 2.2, 0); // Left side, upper position
             
             lightBeam = beamGroup;
             scene.add(lightBeam);
@@ -750,24 +763,41 @@
         function updateLightBeam() {
             if (!lightBeam) return;
             
-            // Update beam width based on slit width
-            const width = (simState.slitWidth / 100) * 0.4;
-            lightBeam.children[0].scale.x = width;
-            lightBeam.children[1].scale.x = width * 0.5;
+            // Update beam width based on slit width (affects the cone opening)
+            const width = (simState.slitWidth / 100) * 0.3;
+            lightBeam.children[0].scale.z = width; // Width in Z axis for horizontal beam
+            lightBeam.children[1].scale.z = width * 0.4;
             
-            // Update beam height based on slit height
-            const height = (simState.slitHeight / 100) * 2.5;
-            lightBeam.children[0].scale.y = height / 2;
-            lightBeam.children[1].scale.y = height / 2;
+            // Update beam height based on slit height (affects vertical spread)
+            const height = (simState.slitHeight / 100) * 1.2;
+            lightBeam.children[0].scale.y = height;
+            lightBeam.children[1].scale.y = height;
+            
+            // Update beam length/projection distance
+            const beamLength = 1.0 + (simState.intensity / 100) * 0.5;
+            lightBeam.children[0].scale.x = beamLength;
+            lightBeam.children[1].scale.x = beamLength;
             
             // Update opacity based on intensity
             const opacity = (simState.intensity / 100) * 0.5;
             lightBeam.children[0].material.opacity = opacity;
-            lightBeam.children[1].material.opacity = opacity * 1.2;
+            lightBeam.children[1].material.opacity = opacity * 1.5;
             
-            // Update beam angle
+            // Update glow intensity
+            if (lightBeam.children[3]) {
+                lightBeam.children[3].material.opacity = (simState.intensity / 100) * 0.9;
+            }
+            
+            // Update beam angle (rotation around Y axis for horizontal sweep)
             const angleRad = (simState.beamAngle * Math.PI) / 180;
             lightBeam.rotation.y = angleRad;
+            
+            // Update spotlight target position based on angle
+            if (beamLight && beamLight.target) {
+                const targetDistance = 2.5;
+                beamLight.target.position.x = targetDistance * Math.cos(angleRad);
+                beamLight.target.position.z = targetDistance * Math.sin(angleRad);
+            }
             
             // Update color based on filter
             let beamColor;
@@ -785,11 +815,16 @@
                     beamColor = 0xffffe0;
             }
             
+            // Update all beam components with new color
             lightBeam.children[0].material.color.setHex(beamColor);
             lightBeam.children[1].material.color.setHex(beamColor);
+            if (lightBeam.children[3]) {
+                lightBeam.children[3].material.color.setHex(beamColor);
+            }
             if (beamLight) {
                 beamLight.color.setHex(beamColor);
-                beamLight.intensity = (simState.intensity / 100) * 3;
+                beamLight.intensity = (simState.intensity / 100) * 4;
+                beamLight.distance = 3 + (simState.intensity / 100) * 3;
             }
         }
         
